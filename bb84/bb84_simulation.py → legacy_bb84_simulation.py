@@ -1,3 +1,19 @@
+"""
+LEGACY FILE — DO NOT USE FOR EXPERIMENTS OR DEPLOYMENT
+
+This script contains an early monolithic implementation of the BB84
+Quantum Key Distribution protocol with AES integration.
+
+It is retained for:
+- Reference
+- Reproducibility
+- Version history
+
+Active development uses modular files in the `bb84/` directory:
+- bb84_core.py
+- eve_attack.py
+- experiments.py
+"""
 import numpy as np
 from qiskit import QuantumCircuit
 from qiskit_aer import Aer
