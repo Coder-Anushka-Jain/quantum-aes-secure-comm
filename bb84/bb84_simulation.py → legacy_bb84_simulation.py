@@ -83,7 +83,7 @@ for i in range(NUM_QUBITS):
     qc = alice_circuits[i]
 
     # Eve intercepts
-    ##qc = eve_intercept(qc, eve_bases[i])
+    qc = eve_intercept(qc, eve_bases[i])
 
     # Bob measures
     if bob_bases[i] == 'X':
