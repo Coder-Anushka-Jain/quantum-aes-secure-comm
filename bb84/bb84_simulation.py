@@ -3,16 +3,19 @@ from qiskit import QuantumCircuit
 from qiskit_aer import Aer
 import matplotlib.pyplot as plt
 
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+
 # -----------------------------
 # CONFIGURATION
 # -----------------------------
 NUM_QUBITS = 1024
+QBER_THRESHOLD = 0.11
 simulator = Aer.get_backend('qasm_simulator')
 
 # -----------------------------
 # ALICE GENERATES BITS & BASES
 # -----------------------------
-
 alice_bits = np.random.randint(2, size=NUM_QUBITS)
 alice_bases = np.random.choice(['Z', 'X'], size=NUM_QUBITS)
 
@@ -36,7 +39,7 @@ def encode_qubit(bit, basis):
 # -----------------------------
 # EVE INTERCEPT–RESEND ATTACK
 # -----------------------------
-def eve_intercept(circuit, eve_basis):
+def eve_intercept(circuit, eve_basis): 
     eve_circuit = circuit.copy()
 
     if eve_basis == 'X':
@@ -80,7 +83,7 @@ for i in range(NUM_QUBITS):
     qc = alice_circuits[i]
 
     # Eve intercepts
-    qc = eve_intercept(qc, eve_bases[i])
+    ##qc = eve_intercept(qc, eve_bases[i])
 
     # Bob measures
     if bob_bases[i] == 'X':
@@ -124,8 +127,51 @@ print("QBER:", qber)
 # QBER GRAPH
 # -----------------------------
 plt.bar(["QBER"], [qber])
-plt.axhline(y=0.11, color='r', linestyle='--', label="Security Threshold (11%)")
+plt.axhline(y=QBER_THRESHOLD, color='r', linestyle='--',
+            label="Security Threshold (11%)")
 plt.ylabel("Error Rate")
 plt.title("QBER under Intercept–Resend Attack")
 plt.legend()
 plt.show()
+
+# -----------------------------
+# QUANTUM KEY → AES KEY
+# -----------------------------
+def quantum_key_to_aes_key(bit_list):
+    bit_string = ''.join(map(str, bit_list))
+    key_bits = (bit_string * 128)[:128]
+    return int(key_bits, 2).to_bytes(16, byteorder='big')
+
+# -----------------------------
+# AES ENCRYPT / DECRYPT
+# -----------------------------
+def aes_encrypt(message, key):
+    cipher = AES.new(key, AES.MODE_CBC)
+    ciphertext = cipher.encrypt(pad(message.encode(), AES.block_size))
+    return cipher.iv, ciphertext
+
+def aes_decrypt(iv, ciphertext, key):
+    cipher = AES.new(key, AES.MODE_CBC, iv=iv)
+    plaintext = unpad(cipher.decrypt(ciphertext), AES.block_size)
+    return plaintext.decode()
+
+# -----------------------------
+# SECURE COMMUNICATION DECISION
+# -----------------------------
+if qber <= QBER_THRESHOLD:
+    print("\nChannel secure. Proceeding with AES encryption.")
+
+    aes_key = quantum_key_to_aes_key(alice_key)
+
+    message = "Quantum cryptography secures the future!"
+    iv, ciphertext = aes_encrypt(message, aes_key)
+    decrypted_message = aes_decrypt(iv, ciphertext, aes_key)
+
+    print("Original message: ", message)
+    print("Encrypted message:", ciphertext)
+    print("Decrypted message:", decrypted_message)
+
+else:
+    print("\nChannel NOT secure. Key discarded due to high QBER.")
+
+
