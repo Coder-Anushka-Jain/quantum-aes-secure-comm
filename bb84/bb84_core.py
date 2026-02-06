@@ -1,39 +1,124 @@
+"""
+BB84 Quantum Key Distribution Protocol - Core Implementation
+
+This module implements the BB84 protocol without any eavesdropping.
+It handles Alice's bit and basis generation, Bob's basis selection,
+basis reconciliation, and final key extraction.
+"""
+
 import numpy as np
-from qiskit import QuantumCircuit
-from qiskit_aer import Aer
+from typing import Dict, List, Tuple
 
-simulator = Aer.get_backend("qasm_simulator")
 
-def encode_qubit(bit, basis):
-    qc = QuantumCircuit(1, 1)
-    if bit == 1:
-        qc.x(0)
-    if basis == "X":
-        qc.h(0)
-    return qc
+def bb84_protocol(num_qubits: int, alice_bits: np.ndarray = None, 
+                  alice_bases: np.ndarray = None, bob_bases: np.ndarray = None) -> Dict:
+    """
+    Execute the BB84 quantum key distribution protocol.
+    
+    Args:
+        num_qubits: Number of qubits to transmit
+        alice_bits: Optional pre-generated Alice bits (for reproducibility)
+        alice_bases: Optional pre-generated Alice bases (for reproducibility)
+        bob_bases: Optional pre-generated Bob bases (for reproducibility)
+    
+    Returns:
+        Dictionary containing:
+            - qber: Quantum Bit Error Rate
+            - alice_key: Final key bits from Alice's side
+            - bob_key: Final key bits from Bob's side
+            - matching_bases_count: Number of matching bases
+            - total_qubits: Total qubits transmitted
+    """
+    
+    # Step 1: Alice generates random bits
+    if alice_bits is None:
+        alice_bits = np.random.randint(0, 2, num_qubits)
+    
+    # Step 2: Alice selects random bases (0 = Z-basis, 1 = X-basis)
+    if alice_bases is None:
+        alice_bases = np.random.randint(0, 2, num_qubits)
+    
+    # Step 3: Alice encodes qubits based on bits and bases
+    # In real QKD, this would be done with photon polarization
+    # Here we simulate the classical information
+    alice_qubits = encode_qubits(alice_bits, alice_bases)
+    
+    # Step 4: Bob selects random bases for measurement
+    if bob_bases is None:
+        bob_bases = np.random.randint(0, 2, num_qubits)
+    
+    # Step 5: Bob measures qubits in his chosen bases
+    bob_bits = measure_qubits(alice_qubits, alice_bases, bob_bases)
+    
+    # Step 6: Basis reconciliation (public channel)
+    # Alice and Bob compare bases and keep only matching ones
+    matching_bases = alice_bases == bob_bases
+    
+    # Step 7: Extract sifted key (bits where bases matched)
+    alice_sifted_key = alice_bits[matching_bases]
+    bob_sifted_key = bob_bits[matching_bases]
+    
+    # Step 8: Calculate QBER (should be ~0% without Eve)
+    if len(alice_sifted_key) > 0:
+        errors = np.sum(alice_sifted_key != bob_sifted_key)
+        qber = errors / len(alice_sifted_key)
+    else:
+        qber = 0.0
+    
+    return {
+        'qber': qber,
+        'alice_key': alice_sifted_key.tolist(),
+        'bob_key': bob_sifted_key.tolist(),
+        'matching_bases_count': np.sum(matching_bases),
+        'total_qubits': num_qubits
+    }
 
-def run_bb84(num_qubits=1024):
-    alice_bits = np.random.randint(2, size=num_qubits)
-    alice_bases = np.random.choice(["Z", "X"], size=num_qubits)
-    bob_bases = np.random.choice(["Z", "X"], size=num_qubits)
 
-    bob_results = []
+def encode_qubits(bits: np.ndarray, bases: np.ndarray) -> np.ndarray:
+    """
+    Encode classical bits into quantum states based on chosen bases.
+    
+    Z-basis (0): |0⟩ or |1⟩
+    X-basis (1): |+⟩ or |-⟩
+    
+    Args:
+        bits: Classical bits to encode
+        bases: Bases to use for encoding
+    
+    Returns:
+        Encoded quantum states (represented classically)
+    """
+    # In simulation, we just store the (bit, basis) pair
+    # Real implementation would prepare photon polarization states
+    qubits = np.column_stack((bits, bases))
+    return qubits
 
-    for i in range(num_qubits):
-        qc = encode_qubit(alice_bits[i], alice_bases[i])
-        if bob_bases[i] == "X":
-            qc.h(0)
-        qc.measure(0, 0)
 
-        result = simulator.run(qc, shots=1).result()
-        measured = int(list(result.get_counts().keys())[0])
-        bob_results.append(measured)
-
-    alice_key, bob_key = [], []
-
-    for i in range(num_qubits):
+def measure_qubits(qubits: np.ndarray, alice_bases: np.ndarray, 
+                   bob_bases: np.ndarray) -> np.ndarray:
+    """
+    Simulate Bob measuring qubits in his chosen bases.
+    
+    If Bob's basis matches Alice's basis: measurement is deterministic
+    If Bob's basis differs: measurement result is random (50/50)
+    
+    Args:
+        qubits: Encoded quantum states from Alice
+        alice_bases: Alice's encoding bases
+        bob_bases: Bob's measurement bases
+    
+    Returns:
+        Bob's measurement results
+    """
+    alice_bits = qubits[:, 0].astype(int)
+    bob_bits = np.zeros(len(qubits), dtype=int)
+    
+    for i in range(len(qubits)):
         if alice_bases[i] == bob_bases[i]:
-            alice_key.append(alice_bits[i])
-            bob_key.append(bob_results[i])
-
-    return alice_key, bob_key
+            # Matching bases: Bob gets Alice's bit with certainty
+            bob_bits[i] = alice_bits[i]
+        else:
+            # Non-matching bases: Bob gets random result (50/50)
+            bob_bits[i] = np.random.randint(0, 2)
+    
+    return bob_bits
