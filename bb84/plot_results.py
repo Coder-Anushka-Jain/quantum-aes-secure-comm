@@ -1,13 +1,13 @@
 """
 Plotting Functions for BB84 Results
 
-This module provides matplotlib-based visualization functions that return
-Figure objects compatible with Streamlit.
+Extended with adaptive decoy-state visualizations.
 """
 
 import matplotlib.pyplot as plt
 import matplotlib
 from typing import List, Dict
+import numpy as np
 
 # Use non-interactive backend for Streamlit compatibility
 matplotlib.use('Agg')
@@ -124,6 +124,194 @@ def plot_key_length_vs_eve(results: List[Dict]) -> plt.Figure:
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
     ax.set_xlim(-0.05, 1.05)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_adaptive_qber_evolution(round_results: List[Dict]) -> plt.Figure:
+    """
+    Plot QBER evolution over adaptive rounds.
+    
+    RESEARCH VISUALIZATION: Shows adaptation effectiveness
+    
+    Args:
+        round_results: List of round results from adaptive experiment
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+    
+    rounds = [r['round'] for r in round_results]
+    qbers = [r['qber'] * 100 for r in round_results]
+    key_lengths = [r['key_length'] for r in round_results]
+    
+    # Plot 1: QBER over time
+    ax1.plot(rounds, qbers, marker='o', linewidth=2, markersize=6, color='blue', label='QBER')
+    ax1.axhline(y=11, color='red', linestyle='--', linewidth=2, label='Security Threshold')
+    ax1.fill_between(rounds, 0, 11, alpha=0.2, color='green', label='Secure Region')
+    ax1.fill_between(rounds, 11, max(qbers + [15]), alpha=0.2, color='red', label='Insecure Region')
+    
+    ax1.set_xlabel('Round Number', fontsize=12)
+    ax1.set_ylabel('QBER (%)', fontsize=12)
+    ax1.set_title('QBER Evolution Over Adaptive Rounds', fontsize=14, fontweight='bold')
+    ax1.legend(loc='upper right')
+    ax1.grid(True, alpha=0.3)
+    
+    # Plot 2: Key length over time
+    ax2.plot(rounds, key_lengths, marker='s', linewidth=2, markersize=6, color='green', label='Key Length')
+    ax2.set_xlabel('Round Number', fontsize=12)
+    ax2.set_ylabel('Key Length (bits)', fontsize=12)
+    ax2.set_title('Key Generation Rate Over Adaptive Rounds', fontsize=14, fontweight='bold')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_decoy_probability_evolution(round_results: List[Dict]) -> plt.Figure:
+    """
+    Plot decoy probability evolution over rounds.
+    
+    RESEARCH VISUALIZATION: Shows adaptation dynamics
+    
+    Args:
+        round_results: List of round results from adaptive experiment
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    rounds = [r['round'] for r in round_results]
+    signal_probs = [r['signal_prob'] * 100 for r in round_results]
+    decoy_probs = [r['decoy_prob'] * 100 for r in round_results]
+    vacuum_probs = [r['vacuum_prob'] * 100 for r in round_results]
+    
+    ax.plot(rounds, signal_probs, marker='o', linewidth=2, label='Signal', color='blue')
+    ax.plot(rounds, decoy_probs, marker='s', linewidth=2, label='Decoy', color='orange')
+    ax.plot(rounds, vacuum_probs, marker='^', linewidth=2, label='Vacuum', color='green')
+    
+    ax.set_xlabel('Round Number', fontsize=12)
+    ax.set_ylabel('Probability (%)', fontsize=12)
+    ax.set_title('Decoy-State Probability Evolution', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=11)
+    ax.grid(True, alpha=0.3)
+    ax.set_ylim(0, 100)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_strategy_comparison(comparison_results: Dict) -> plt.Figure:
+    """
+    Compare performance of different adaptive strategies.
+    
+    RESEARCH VISUALIZATION: Strategy benchmarking
+    
+    Args:
+        comparison_results: Results from compare_adaptive_strategies
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    
+    strategies = list(comparison_results.keys())
+    mean_qbers = [comparison_results[s]['mean_qber'] * 100 for s in strategies]
+    std_qbers = [comparison_results[s]['std_qber'] * 100 for s in strategies]
+    mean_key_lengths = [comparison_results[s]['mean_key_length'] for s in strategies]
+    std_key_lengths = [comparison_results[s]['std_key_length'] for s in strategies]
+    
+    # Plot 1: QBER comparison
+    x_pos = np.arange(len(strategies))
+    ax1.bar(x_pos, mean_qbers, yerr=std_qbers, capsize=5, alpha=0.7, color='skyblue', edgecolor='black')
+    ax1.axhline(y=11, color='red', linestyle='--', linewidth=2, label='Security Threshold')
+    ax1.set_xticks(x_pos)
+    ax1.set_xticklabels(strategies, rotation=15, ha='right')
+    ax1.set_ylabel('Mean QBER (%)', fontsize=12)
+    ax1.set_title('QBER by Strategy', fontsize=13, fontweight='bold')
+    ax1.legend()
+    ax1.grid(axis='y', alpha=0.3)
+    
+    # Plot 2: Key length comparison
+    ax2.bar(x_pos, mean_key_lengths, yerr=std_key_lengths, capsize=5, alpha=0.7, color='lightgreen', edgecolor='black')
+    ax2.set_xticks(x_pos)
+    ax2.set_xticklabels(strategies, rotation=15, ha='right')
+    ax2.set_ylabel('Mean Key Length (bits)', fontsize=12)
+    ax2.set_title('Key Generation by Strategy', fontsize=13, fontweight='bold')
+    ax2.grid(axis='y', alpha=0.3)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_static_vs_adaptive(comparison_result: Dict) -> plt.Figure:
+    """
+    Visualize static vs adaptive decoy-state performance.
+    
+    RESEARCH VISUALIZATION: Core comparison for paper
+    
+    Args:
+        comparison_result: Result from run_static_vs_adaptive_comparison
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    
+    modes = ['Static', 'Adaptive']
+    qbers = [
+        comparison_result['static']['mean_qber'] * 100,
+        comparison_result['adaptive']['mean_qber'] * 100
+    ]
+    qber_stds = [
+        comparison_result['static']['std_qber'] * 100,
+        comparison_result['adaptive']['std_qber'] * 100
+    ]
+    key_lengths = [
+        comparison_result['static']['mean_key_length'],
+        comparison_result['adaptive']['mean_key_length']
+    ]
+    key_length_stds = [
+        comparison_result['static']['std_key_length'],
+        comparison_result['adaptive']['std_key_length']
+    ]
+    
+    # Plot 1: QBER comparison
+    x_pos = np.arange(len(modes))
+    bars1 = ax1.bar(x_pos, qbers, yerr=qber_stds, capsize=7, 
+                    color=['#FF6B6B', '#4ECDC4'], alpha=0.8, edgecolor='black', linewidth=1.5)
+    ax1.axhline(y=11, color='red', linestyle='--', linewidth=2, label='Security Threshold')
+    ax1.set_xticks(x_pos)
+    ax1.set_xticklabels(modes, fontsize=13, fontweight='bold')
+    ax1.set_ylabel('Mean QBER (%)', fontsize=13)
+    ax1.set_title('QBER: Static vs Adaptive', fontsize=14, fontweight='bold')
+    ax1.legend()
+    ax1.grid(axis='y', alpha=0.3)
+    
+    # Add improvement percentage
+    improvement = comparison_result['improvement']['qber_reduction']
+    ax1.text(0.5, max(qbers) * 0.9, f'{improvement:+.1f}% improvement', 
+             ha='center', fontsize=11, fontweight='bold', 
+             bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.5))
+    
+    # Plot 2: Key length comparison
+    bars2 = ax2.bar(x_pos, key_lengths, yerr=key_length_stds, capsize=7,
+                    color=['#FF6B6B', '#4ECDC4'], alpha=0.8, edgecolor='black', linewidth=1.5)
+    ax2.set_xticks(x_pos)
+    ax2.set_xticklabels(modes, fontsize=13, fontweight='bold')
+    ax2.set_ylabel('Mean Key Length (bits)', fontsize=13)
+    ax2.set_title('Key Generation: Static vs Adaptive', fontsize=14, fontweight='bold')
+    ax2.grid(axis='y', alpha=0.3)
+    
+    # Add improvement percentage
+    improvement = comparison_result['improvement']['key_length_increase']
+    ax2.text(0.5, max(key_lengths) * 0.9, f'{improvement:+.1f}% improvement',
+             ha='center', fontsize=11, fontweight='bold',
+             bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.5))
     
     plt.tight_layout()
     return fig
