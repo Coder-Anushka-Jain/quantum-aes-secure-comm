@@ -315,3 +315,173 @@ def plot_static_vs_adaptive(comparison_result: Dict) -> plt.Figure:
     
     plt.tight_layout()
     return fig
+
+
+def plot_key_rate_vs_eve(results: List[Dict]) -> plt.Figure:
+    """
+    Plot secret key rate vs Eve interception probability.
+    
+    Args:
+        results: List of results from run_eve_sweep_with_key_rate
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    eve_probs = [r['eve_probability'] for r in results]
+    mean_key_rates = [r['mean_key_rate'] for r in results]
+    std_key_rates = [r['std_key_rate'] for r in results]
+    
+    # Plot with error bars
+    ax.errorbar(eve_probs, mean_key_rates, yerr=std_key_rates,
+                marker='o', linewidth=2, markersize=8,
+                capsize=5, capthick=2, color='purple', label='Simulated Key Rate')
+    
+    # Theoretical curve
+    from bb84.key_rate_calculator import compute_theoretical_key_rate
+    theoretical_rates = [compute_theoretical_key_rate(p) for p in eve_probs]
+    ax.plot(eve_probs, theoretical_rates, 'g--', 
+            linewidth=2, alpha=0.7, label='Theoretical Key Rate')
+    
+    # Zero line
+    ax.axhline(y=0, color='red', linestyle=':', linewidth=1.5, alpha=0.5)
+    
+    # Formatting
+    ax.set_xlabel('Eve Interception Probability', fontsize=12)
+    ax.set_ylabel('Secret Key Rate (bits/pulse)', fontsize=12)
+    ax.set_title('Secret Key Rate vs Eve Probability', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(-0.05, 1.05)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_key_rate_vs_qber(results: List[Dict]) -> plt.Figure:
+    """
+    Plot secret key rate vs QBER.
+    
+    Args:
+        results: List of results from run_eve_sweep_with_key_rate
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    mean_qbers = [r['mean_qber'] * 100 for r in results]
+    mean_key_rates = [r['mean_key_rate'] for r in results]
+    
+    # Scatter plot
+    ax.scatter(mean_qbers, mean_key_rates, s=100, alpha=0.6, 
+               c=mean_key_rates, cmap='RdYlGn', edgecolors='black', linewidth=1.5)
+    
+    # Color bar
+    cbar = plt.colorbar(ax.collections[0], ax=ax)
+    cbar.set_label('Key Rate (bits/pulse)', fontsize=10)
+    
+    # QBER threshold
+    ax.axvline(x=11, color='red', linestyle='--', linewidth=2, label='Security Threshold (11%)')
+    
+    # Zero key rate line
+    ax.axhline(y=0, color='orange', linestyle=':', linewidth=1.5, alpha=0.5)
+    
+    # Formatting
+    ax.set_xlabel('QBER (%)', fontsize=12)
+    ax.set_ylabel('Secret Key Rate (bits/pulse)', fontsize=12)
+    ax.set_title('Secret Key Rate vs QBER', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_adaptive_key_rate_evolution(round_results: List[Dict]) -> plt.Figure:
+    """
+    Plot key rate evolution over adaptive rounds.
+    
+    Args:
+        round_results: List of round results with key_rate field
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+    
+    rounds = [r['round'] for r in round_results]
+    qbers = [r['qber'] * 100 for r in round_results]
+    key_rates = [r['key_rate'] for r in round_results]
+    
+    # Plot 1: QBER
+    ax1.plot(rounds, qbers, marker='o', linewidth=2, markersize=6, color='blue', label='QBER')
+    ax1.axhline(y=11, color='red', linestyle='--', linewidth=2, label='Security Threshold')
+    ax1.set_xlabel('Round Number', fontsize=12)
+    ax1.set_ylabel('QBER (%)', fontsize=12)
+    ax1.set_title('QBER Evolution', fontsize=13, fontweight='bold')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Plot 2: Key Rate
+    ax2.plot(rounds, key_rates, marker='s', linewidth=2, markersize=6, color='green', label='Key Rate')
+    ax2.axhline(y=0, color='red', linestyle=':', linewidth=1.5, alpha=0.5, label='Zero Rate')
+    ax2.set_xlabel('Round Number', fontsize=12)
+    ax2.set_ylabel('Secret Key Rate (bits/pulse)', fontsize=12)
+    ax2.set_title('Secret Key Rate Evolution', fontsize=13, fontweight='bold')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_static_vs_adaptive_key_rate(comparison_result: Dict) -> plt.Figure:
+    """
+    Compare static vs adaptive key rates.
+    
+    Args:
+        comparison_result: Result from compare_static_adaptive_key_rates
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    modes = ['Static', 'Adaptive']
+    key_rates = [
+        comparison_result['static']['mean_key_rate'],
+        comparison_result['adaptive']['mean_key_rate']
+    ]
+    key_rate_stds = [
+        comparison_result['static']['std_key_rate'],
+        comparison_result['adaptive']['std_key_rate']
+    ]
+    
+    x_pos = np.arange(len(modes))
+    bars = ax.bar(x_pos, key_rates, yerr=key_rate_stds, capsize=7,
+                  color=['#FF6B6B', '#4ECDC4'], alpha=0.8, edgecolor='black', linewidth=1.5)
+    
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(modes, fontsize=13, fontweight='bold')
+    ax.set_ylabel('Mean Secret Key Rate (bits/pulse)', fontsize=13)
+    ax.set_title('Secret Key Rate: Static vs Adaptive', fontsize=14, fontweight='bold')
+    ax.grid(axis='y', alpha=0.3)
+    ax.axhline(y=0, color='red', linestyle='--', linewidth=1.5, alpha=0.5)
+    
+    # Add improvement percentage
+    improvement = comparison_result['improvement']['key_rate_increase']
+    ax.text(0.5, max(key_rates) * 0.9, f'{improvement:+.1f}% improvement',
+            ha='center', fontsize=11, fontweight='bold',
+            bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.5))
+    
+    # Add value labels
+    for i, (bar, rate) in enumerate(zip(bars, key_rates)):
+        height = bar.get_height()
+        ax.text(bar.get_x() + bar.get_width()/2., height,
+                f'{rate:.4f}',
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
+    
+    plt.tight_layout()
+    return fig
