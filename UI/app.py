@@ -1,7 +1,8 @@
 """
 Streamlit Application for BB84 + AES Secure Communication System
 
-Extended with Adaptive Decoy-State QKD capabilities and Secret Key Rate Analysis.
+Extended with Adaptive Decoy-State QKD capabilities, Secret Key Rate Analysis,
+and Photon Number Splitting (PNS) Attack Analysis.
 """
 
 import streamlit as st
@@ -24,7 +25,10 @@ from bb84.plot_results import (
     plot_adaptive_qber_evolution, plot_decoy_probability_evolution,
     plot_strategy_comparison, plot_static_vs_adaptive,
     plot_key_rate_vs_eve, plot_key_rate_vs_qber,
-    plot_adaptive_key_rate_evolution, plot_static_vs_adaptive_key_rate
+    plot_adaptive_key_rate_evolution, plot_static_vs_adaptive_key_rate,
+    plot_detection_rates_signal_vs_decoy, plot_qber_under_pns,
+    plot_key_rate_under_pns, plot_eve_information_gain_pns,
+    plot_attack_comparison_ir_vs_pns
 )
 from bb84.key_rate_calculator import compute_key_rate_from_result
 from Crypto.Cipher import AES
@@ -68,7 +72,7 @@ def main():
     st.markdown("""
     ### Advanced Hybrid Quantum–Classical Cryptography with Adaptive Decoy States
     **Research Features:** Dynamic decoy probability optimization, multi-strategy comparison, 
-    secret key rate analysis, and real-time attack mitigation.
+    secret key rate analysis, PNS attack detection, and real-time attack mitigation.
     """)
     
     st.divider()
@@ -79,7 +83,7 @@ def main():
     mode = st.sidebar.radio(
         "Operation Mode",
         ["Single Run", "Adaptive Multi-Round", "Strategy Comparison", 
-         "Static vs Adaptive", "Key Rate Analysis"],
+         "Static vs Adaptive", "Key Rate Analysis", "PNS Attack Analysis"],
         help="Choose experiment type"
     )
     
@@ -123,6 +127,9 @@ def main():
     
     elif mode == "Key Rate Analysis":
         run_key_rate_analysis_mode(num_qubits)
+    
+    elif mode == "PNS Attack Analysis":
+        run_pns_attack_mode(num_qubits)
 
 
 def run_single_mode(num_qubits, eve_enabled, eve_probability):
@@ -145,7 +152,7 @@ def run_single_mode(num_qubits, eve_enabled, eve_probability):
         else:
             result = st.session_state.last_result
         
-        # Display results (original UI code)
+        # Display results
         st.header("1️⃣ BB84 Protocol Execution")
         
         col1, col2, col3, col4 = st.columns(4)
@@ -673,6 +680,228 @@ def run_key_rate_analysis_mode(num_qubits):
             file_name="key_rate_analysis.csv",
             mime="text/csv"
         )
+
+
+def run_pns_attack_mode(num_qubits):
+    """Photon Number Splitting attack analysis mode."""
+    
+    st.sidebar.header("🔬 PNS Attack Parameters")
+    
+    mu_signal = st.sidebar.slider(
+        "Signal Mean Photon Number (μ)",
+        0.1, 1.5, 0.5, 0.1,
+        help="Higher μ = more multi-photon pulses"
+    )
+    
+    mu_decoy = st.sidebar.slider(
+        "Decoy Mean Photon Number",
+        0.01, 0.3, 0.1, 0.01
+    )
+    
+    channel_loss = st.sidebar.slider(
+        "Channel Loss",
+        0.0, 0.5, 0.1, 0.05
+    )
+    
+    detector_efficiency = st.sidebar.slider(
+        "Detector Efficiency",
+        0.1, 1.0, 0.5, 0.1
+    )
+    
+    # Analysis type
+    analysis_type = st.sidebar.selectbox(
+        "Analysis Type",
+        ["Single Run", "Parameter Sweep", "Attack Comparison"]
+    )
+    
+    if analysis_type == "Single Run":
+        run_button = st.sidebar.button("🚀 Run PNS Attack", type="primary")
+        
+        if run_button:
+            with st.spinner("Running PNS attack simulation..."):
+                from bb84.pns_attack import run_bb84_with_pns_attack
+                result = run_bb84_with_pns_attack(
+                    num_pulses=num_qubits,
+                    mu_signal=mu_signal,
+                    mu_decoy=mu_decoy,
+                    channel_loss=channel_loss,
+                    detector_efficiency=detector_efficiency
+                )
+                st.session_state.pns_result = result
+        
+        if 'pns_result' in st.session_state:
+            result = st.session_state.pns_result
+            
+            st.header("📊 PNS Attack Results")
+            
+            # Metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("QBER", f"{result['qber']*100:.2f}%")
+            with col2:
+                st.metric("Key Length", result['key_length'])
+            with col3:
+                eve_info = result['eve_results']['information_gain'] * 100
+                st.metric("Eve's Info Gain", f"{eve_info:.2f}%")
+            with col4:
+                multi_photon = result['attack_stats']['multi_photon_fraction'] * 100
+                st.metric("Multi-Photon %", f"{multi_photon:.2f}%")
+            
+            # Detection rates
+            st.header("🎯 Detection Rate Analysis")
+            det_stats = result['detection_stats']
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Signal Detection Rate", 
+                         f"{det_stats['signal_detection_rate']:.4f}")
+            with col2:
+                st.metric("Decoy Detection Rate",
+                         f"{det_stats['decoy_detection_rate']:.4f}")
+            with col3:
+                st.metric("Vacuum Detection Rate",
+                         f"{det_stats['vacuum_detection_rate']:.4f}")
+            
+            # Attack statistics
+            with st.expander("📋 Detailed Attack Statistics"):
+                import pandas as pd
+                attack_stats = result['attack_stats']
+                stats_df = pd.DataFrame([{
+                    'Total Pulses': attack_stats['total_pulses'],
+                    'Vacuum Pulses': attack_stats['vacuum_pulses'],
+                    'Single-Photon Pulses': attack_stats['single_photon_pulses'],
+                    'Multi-Photon Pulses': attack_stats['multi_photon_pulses'],
+                    'Eve Stored': attack_stats['eve_stored_photons'],
+                    'Eve Measured': attack_stats['eve_successful_measurements'],
+                    'Storage Success Rate': f"{attack_stats['storage_success_rate']:.3f}"
+                }])
+                st.dataframe(stats_df.T, use_container_width=True)
+    
+    elif analysis_type == "Parameter Sweep":
+        mu_values = st.sidebar.multiselect(
+            "Mean Photon Numbers to Test",
+            [0.1, 0.2, 0.3, 0.5, 0.7, 1.0, 1.5],
+            default=[0.2, 0.5, 1.0]
+        )
+        
+        trials = st.sidebar.slider("Trials per Value", 1, 20, 5)
+        
+        run_button = st.sidebar.button("🚀 Run Sweep", type="primary")
+        
+        if run_button and mu_values:
+            with st.spinner("Running parameter sweep..."):
+                from bb84.pns_experiments import run_pns_parameter_sweep
+                results = run_pns_parameter_sweep(
+                    num_pulses=num_qubits,
+                    mu_signal_values=mu_values,
+                    trials=trials
+                )
+                st.session_state.pns_sweep_results = results
+        
+        if 'pns_sweep_results' in st.session_state:
+            results = st.session_state.pns_sweep_results
+            
+            st.header("📊 PNS Parameter Sweep Results")
+            
+            # Summary table
+            import pandas as pd
+            summary_data = []
+            for r in results:
+                summary_data.append({
+                    'μ (signal)': r['mu_signal'],
+                    'Mean QBER (%)': r['mean_qber'] * 100,
+                    'Mean Key Rate': r['mean_key_rate'],
+                    'Eve Info Gain (%)': r['mean_eve_info_gain'] * 100,
+                    'Signal Det. Rate': r['mean_signal_detection_rate'],
+                    'Decoy Det. Rate': r['mean_decoy_detection_rate']
+                })
+            df = pd.DataFrame(summary_data)
+            st.dataframe(df.round(4), use_container_width=True)
+            
+            # Plots
+            st.header("📈 Analysis Plots")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                fig1 = plot_detection_rates_signal_vs_decoy(results)
+                st.pyplot(fig1)
+            
+            with col2:
+                fig2 = plot_qber_under_pns(results)
+                st.pyplot(fig2)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                fig3 = plot_key_rate_under_pns(results)
+                st.pyplot(fig3)
+            
+            with col2:
+                fig4 = plot_eve_information_gain_pns(results)
+                st.pyplot(fig4)
+    
+    elif analysis_type == "Attack Comparison":
+        eve_prob = st.sidebar.slider(
+            "Eve Probability (for IR attack)",
+            0.0, 1.0, 0.5, 0.1
+        )
+        
+        trials = st.sidebar.slider("Trials", 1, 20, 10)
+        
+        run_button = st.sidebar.button("🚀 Compare Attacks", type="primary")
+        
+        if run_button:
+            with st.spinner("Comparing attacks..."):
+                from bb84.pns_experiments import compare_intercept_resend_vs_pns
+                comparison = compare_intercept_resend_vs_pns(
+                    num_pulses=num_qubits,
+                    eve_probability=eve_prob,
+                    mu_signal=mu_signal,
+                    trials=trials
+                )
+                st.session_state.attack_comparison = comparison
+        
+        if 'attack_comparison' in st.session_state:
+            comp = st.session_state.attack_comparison
+            
+            st.header("⚔️ Attack Comparison: IR vs PNS")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("Intercept-Resend")
+                st.metric("QBER", f"{comp['intercept_resend']['mean_qber']*100:.2f}%")
+                st.metric("Key Rate", f"{comp['intercept_resend']['mean_key_rate']:.6f}")
+            
+            with col2:
+                st.subheader("PNS Attack")
+                st.metric("QBER", f"{comp['pns_attack']['mean_qber']*100:.2f}%")
+                st.metric("Key Rate", f"{comp['pns_attack']['mean_key_rate']:.6f}")
+                st.metric("Eve Info Gain", f"{comp['pns_attack']['mean_eve_info_gain']*100:.2f}%")
+            
+            st.header("📊 Comparison Plot")
+            fig = plot_attack_comparison_ir_vs_pns(comp)
+            st.pyplot(fig)
+            
+            with st.expander("📝 Analysis"):
+                st.markdown(f"""
+                ### Key Findings
+                
+                **QBER:**
+                - Intercept-Resend: {comp['intercept_resend']['mean_qber']*100:.2f}%
+                - PNS: {comp['pns_attack']['mean_qber']*100:.2f}%
+                - Difference: {comp['comparison']['qber_difference']*100:.2f}%
+                
+                **Key Rate:**
+                - Intercept-Resend: {comp['intercept_resend']['mean_key_rate']:.6f} bits/pulse
+                - PNS: {comp['pns_attack']['mean_key_rate']:.6f} bits/pulse
+                - Difference: {comp['comparison']['key_rate_difference']:.6f} bits/pulse
+                
+                **Conclusion:**
+                PNS attack is {'more stealthy' if comp['comparison']['pns_advantage'] == 'PNS' else 'less stealthy'} 
+                than Intercept-Resend, with {'lower' if comp['comparison']['pns_advantage'] == 'PNS' else 'higher'} QBER.
+                
+                This demonstrates why decoy-state protocols are essential for detecting PNS attacks.
+                """)
 
 
 if __name__ == "__main__":

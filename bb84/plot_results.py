@@ -485,3 +485,215 @@ def plot_static_vs_adaptive_key_rate(comparison_result: Dict) -> plt.Figure:
     
     plt.tight_layout()
     return fig
+
+
+def plot_detection_rates_signal_vs_decoy(results: List[Dict]) -> plt.Figure:
+    """
+    Plot detection rates for signal vs decoy pulses.
+    
+    This is crucial for detecting PNS attacks using decoy-state analysis.
+    
+    Args:
+        results: List of PNS experiment results
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    mu_values = [r['mu_signal'] for r in results]
+    signal_rates = [r['mean_signal_detection_rate'] for r in results]
+    decoy_rates = [r['mean_decoy_detection_rate'] for r in results]
+    signal_stds = [r['std_signal_detection_rate'] for r in results]
+    decoy_stds = [r['std_decoy_detection_rate'] for r in results]
+    
+    # Plot with error bars
+    ax.errorbar(mu_values, signal_rates, yerr=signal_stds,
+                marker='o', linewidth=2, markersize=8,
+                capsize=5, label='Signal Pulses', color='blue')
+    
+    ax.errorbar(mu_values, decoy_rates, yerr=decoy_stds,
+                marker='s', linewidth=2, markersize=8,
+                capsize=5, label='Decoy Pulses', color='orange')
+    
+    # Theoretical curves (no attack)
+    mu_theory = np.linspace(min(mu_values), max(mu_values), 100)
+    # Detection rate ≈ 1 - exp(-η·μ) where η is detector efficiency
+    eta = 0.5
+    theory_signal = 1 - np.exp(-eta * mu_theory)
+    theory_decoy = 1 - np.exp(-eta * 0.1)  # Fixed decoy intensity
+    
+    ax.plot(mu_theory, theory_signal, '--', color='blue', 
+            alpha=0.5, label='Theoretical (no attack)')
+    ax.axhline(y=theory_decoy, linestyle='--', color='orange', 
+               alpha=0.5)
+    
+    ax.set_xlabel('Mean Photon Number (μ)', fontsize=12)
+    ax.set_ylabel('Detection Rate', fontsize=12)
+    ax.set_title('Detection Rate: Signal vs Decoy Pulses (PNS Attack)', 
+                 fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_qber_under_pns(results: List[Dict]) -> plt.Figure:
+    """
+    Plot QBER under PNS attack vs mean photon number.
+    
+    Args:
+        results: List of PNS experiment results
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    mu_values = [r['mu_signal'] for r in results]
+    qbers = [r['mean_qber'] * 100 for r in results]
+    qber_stds = [r['std_qber'] * 100 for r in results]
+    
+    ax.errorbar(mu_values, qbers, yerr=qber_stds,
+                marker='o', linewidth=2, markersize=8,
+                capsize=5, color='red', label='QBER with PNS')
+    
+    # Security threshold
+    ax.axhline(y=11, color='orange', linestyle='--', 
+               linewidth=2, label='Security Threshold (11%)')
+    
+    ax.set_xlabel('Mean Photon Number (μ)', fontsize=12)
+    ax.set_ylabel('QBER (%)', fontsize=12)
+    ax.set_title('QBER Under PNS Attack', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_key_rate_under_pns(results: List[Dict]) -> plt.Figure:
+    """
+    Plot secret key rate under PNS attack.
+    
+    Args:
+        results: List of PNS experiment results
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    mu_values = [r['mu_signal'] for r in results]
+    key_rates = [r['mean_key_rate'] for r in results]
+    key_rate_stds = [r['std_key_rate'] for r in results]
+    
+    ax.errorbar(mu_values, key_rates, yerr=key_rate_stds,
+                marker='o', linewidth=2, markersize=8,
+                capsize=5, color='green', label='Key Rate with PNS')
+    
+    # Zero line
+    ax.axhline(y=0, color='red', linestyle=':', linewidth=1.5, alpha=0.5)
+    
+    ax.set_xlabel('Mean Photon Number (μ)', fontsize=12)
+    ax.set_ylabel('Secret Key Rate (bits/pulse)', fontsize=12)
+    ax.set_title('Secret Key Rate Under PNS Attack', fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_eve_information_gain_pns(results: List[Dict]) -> plt.Figure:
+    """
+    Plot Eve's information gain from PNS attack.
+    
+    Args:
+        results: List of PNS experiment results
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    mu_values = [r['mu_signal'] for r in results]
+    info_gains = [r['mean_eve_info_gain'] * 100 for r in results]
+    info_gain_stds = [r['std_eve_info_gain'] * 100 for r in results]
+    
+    ax.errorbar(mu_values, info_gains, yerr=info_gain_stds,
+                marker='o', linewidth=2, markersize=8,
+                capsize=5, color='purple', label="Eve's Information Gain")
+    
+    # Theoretical multi-photon fraction
+    mu_theory = np.linspace(min(mu_values), max(mu_values), 100)
+    multi_photon_prob = 1 - np.exp(-mu_theory) * (1 + mu_theory)
+    ax.plot(mu_theory, multi_photon_prob * 100, '--', 
+            color='purple', alpha=0.5, label='Theoretical (≥2 photons)')
+    
+    ax.set_xlabel('Mean Photon Number (μ)', fontsize=12)
+    ax.set_ylabel("Eve's Information Gain (%)", fontsize=12)
+    ax.set_title("Eve's Information Gain from PNS Attack", 
+                 fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    return fig
+
+
+def plot_attack_comparison_ir_vs_pns(comparison_result: Dict) -> plt.Figure:
+    """
+    Compare Intercept-Resend vs PNS attack.
+    
+    Args:
+        comparison_result: Result from compare_intercept_resend_vs_pns
+    
+    Returns:
+        Matplotlib Figure object
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    
+    attacks = ['Intercept-Resend', 'PNS']
+    qbers = [
+        comparison_result['intercept_resend']['mean_qber'] * 100,
+        comparison_result['pns_attack']['mean_qber'] * 100
+    ]
+    key_rates = [
+        comparison_result['intercept_resend']['mean_key_rate'],
+        comparison_result['pns_attack']['mean_key_rate']
+    ]
+    
+    # Plot 1: QBER comparison
+    colors = ['#FF6B6B', '#4ECDC4']
+    bars1 = ax1.bar(attacks, qbers, color=colors, alpha=0.8, edgecolor='black', linewidth=1.5)
+    ax1.axhline(y=11, color='red', linestyle='--', linewidth=2, label='Security Threshold')
+    ax1.set_ylabel('QBER (%)', fontsize=12)
+    ax1.set_title('QBER Comparison', fontsize=13, fontweight='bold')
+    ax1.legend()
+    ax1.grid(axis='y', alpha=0.3)
+    
+    # Add values on bars
+    for bar, qber in zip(bars1, qbers):
+        height = bar.get_height()
+        ax1.text(bar.get_x() + bar.get_width()/2., height,
+                f'{qber:.2f}%',
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
+    
+    # Plot 2: Key rate comparison
+    bars2 = ax2.bar(attacks, key_rates, color=colors, alpha=0.8, edgecolor='black', linewidth=1.5)
+    ax2.axhline(y=0, color='red', linestyle=':', linewidth=1.5, alpha=0.5)
+    ax2.set_ylabel('Secret Key Rate (bits/pulse)', fontsize=12)
+    ax2.set_title('Key Rate Comparison', fontsize=13, fontweight='bold')
+    ax2.grid(axis='y', alpha=0.3)
+    
+    # Add values on bars
+    for bar, rate in zip(bars2, key_rates):
+        height = bar.get_height()
+        ax2.text(bar.get_x() + bar.get_width()/2., height,
+                f'{rate:.4f}',
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
+    
+    plt.tight_layout()
+    return fig
