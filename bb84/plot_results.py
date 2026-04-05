@@ -697,3 +697,273 @@ def plot_attack_comparison_ir_vs_pns(comparison_result: Dict) -> plt.Figure:
     
     plt.tight_layout()
     return fig
+
+def plot_key_rate_vs_distance(results: List[Dict]) -> plt.Figure:
+    """
+    Plot secret key rate vs fiber distance.
+    
+    Args:
+        results: Results from run_distance_sweep
+    
+    Returns:
+        Matplotlib Figure
+    """
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    
+    distances = [r['distance_km'] for r in results]
+    key_rates = [r['mean_key_rate'] for r in results]
+    key_rate_stds = [r['std_key_rate'] for r in results]
+    transmittances = [r['transmittance'] for r in results]
+    
+    # Plot 1: Key rate vs distance
+    ax1.errorbar(distances, key_rates, yerr=key_rate_stds,
+                 marker='o', linewidth=2, markersize=8,
+                 capsize=5, color='blue', label='Simulated')
+    
+    ax1.axhline(y=0, color='red', linestyle=':', linewidth=1.5)
+    ax1.set_xlabel('Fiber Distance (km)', fontsize=12)
+    ax1.set_ylabel('Secret Key Rate (bits/pulse)', fontsize=12)
+    ax1.set_title('Key Rate vs Distance', fontsize=14, fontweight='bold')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Plot 2: Transmittance vs distance
+    ax2.semilogy(distances, transmittances, marker='s', linewidth=2,
+                 markersize=8, color='green', label='η = 10^(-0.2L/10)')
+    ax2.set_xlabel('Fiber Distance (km)', fontsize=12)
+    ax2.set_ylabel('Channel Transmittance η', fontsize=12)
+    ax2.set_title('Channel Loss vs Distance', fontsize=14, fontweight='bold')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3, which='both')
+    
+    plt.tight_layout()
+    return fig
+
+
+import matplotlib.pyplot as plt
+import numpy as np
+from typing import Dict, List
+ 
+ 
+# --------------------------------
+# (A) QBER Stability
+# --------------------------------
+def plot_qber_stability(results: Dict) -> plt.Figure:
+    """
+    Plot mean QBER over rounds for each method.
+ 
+    Args:
+        results: {method: [{'qber_history': [...], ...}, ...]}
+    """
+    fig, ax = plt.subplots(figsize=(10, 5))
+ 
+    method_labels = {
+        'static':          'Static BB84',
+        'adaptive_prng':   'Adaptive (PRNG)',
+        'adaptive_chaos':  'Adaptive (Chaotic)',
+    }
+    colors = {
+        'static':          '#888780',
+        'adaptive_prng':   '#378ADD',
+        'adaptive_chaos':  '#1D9E75',
+    }
+ 
+    for method, trials in results.items():
+        histories = [t['qber_history'] for t in trials if 'qber_history' in t]
+        if not histories:
+            continue
+ 
+        # Pad / truncate so every history has the same length
+        min_len = min(len(h) for h in histories)
+        trimmed = np.array([h[:min_len] for h in histories])
+ 
+        mean_qber = np.mean(trimmed, axis=0)
+        std_qber  = np.std(trimmed,  axis=0)
+        rounds    = np.arange(1, min_len + 1)
+ 
+        label = method_labels.get(method, method)
+        color = colors.get(method, None)
+ 
+        ax.plot(rounds, mean_qber, label=label, color=color, linewidth=2)
+        ax.fill_between(rounds,
+                        mean_qber - std_qber,
+                        mean_qber + std_qber,
+                        alpha=0.15, color=color)
+ 
+    ax.axhline(y=0.11, color='red', linestyle='--', linewidth=1.5,
+               label='Security threshold (11%)')
+    ax.set_title('QBER Stability Comparison', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Round', fontsize=12)
+    ax.set_ylabel('QBER', fontsize=12)
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return fig
+ 
+ 
+# --------------------------------
+# (B) Attack Detection
+# --------------------------------
+def plot_attack_detection(results: Dict) -> plt.Figure:
+    """
+    Plot mean detection rate vs Eve probability for each method.
+ 
+    Args:
+        results: {method: {eve_prob: [{'detection_rate': float, ...}, ...]}}
+    """
+    fig, ax = plt.subplots(figsize=(10, 5))
+ 
+    method_labels = {
+        'static':          'Static BB84',
+        'adaptive_prng':   'Adaptive (PRNG)',
+        'adaptive_chaos':  'Adaptive (Chaotic)',
+    }
+    markers = {'static': 'o', 'adaptive_prng': 's', 'adaptive_chaos': '^'}
+ 
+    for method, eve_dict in results.items():
+        if not isinstance(eve_dict, dict):
+            continue
+ 
+        eve_probs  = sorted(eve_dict.keys())
+        det_rates  = []
+ 
+        for p in eve_probs:
+            trials = eve_dict[p]
+            # 'detected' is a bool when eve_present=True, None otherwise
+            rates  = []
+            for t in trials:
+                dr = t.get('detection_rate')
+                if dr is None:
+                    # Fall back to bool 'detected' if present
+                    detected = t.get('detected')
+                    dr = float(detected) if detected is not None else 0.0
+                rates.append(float(dr))
+            det_rates.append(np.mean(rates) if rates else 0.0)
+ 
+        label  = method_labels.get(method, method)
+        marker = markers.get(method, 'o')
+        ax.plot(eve_probs, det_rates, marker=marker, linewidth=2,
+                markersize=7, label=label)
+ 
+    ax.set_title('Attack Detection Rate vs Eve Probability',
+                 fontsize=14, fontweight='bold')
+    ax.set_xlabel('Eve Probability', fontsize=12)
+    ax.set_ylabel('Detection Rate', fontsize=12)
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_ylim(-0.05, 1.10)
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return fig
+ 
+ 
+# --------------------------------
+# (C) Key Rate
+# --------------------------------
+def plot_key_rate(results: Dict) -> plt.Figure:
+    """
+    Plot mean secret key rate vs Eve probability for each method.
+ 
+    Args:
+        results: {method: {eve_prob: [{'mean_key_rate': float, ...}, ...]}}
+    """
+    fig, ax = plt.subplots(figsize=(10, 5))
+ 
+    method_labels = {
+        'static':          'Static BB84',
+        'adaptive_prng':   'Adaptive (PRNG)',
+        'adaptive_chaos':  'Adaptive (Chaotic)',
+    }
+    colors  = {'static': '#888780', 'adaptive_prng': '#378ADD',
+                'adaptive_chaos': '#1D9E75'}
+    markers = {'static': 'o', 'adaptive_prng': 's', 'adaptive_chaos': '^'}
+ 
+    for method, eve_dict in results.items():
+        if not isinstance(eve_dict, dict):
+            continue
+ 
+        eve_probs  = sorted(eve_dict.keys())
+        key_rates  = []
+        key_stds   = []
+ 
+        for p in eve_probs:
+            trials = eve_dict[p]
+            rates  = [t.get('mean_key_rate', 0.0) for t in trials]
+            key_rates.append(np.mean(rates))
+            key_stds.append(np.std(rates))
+ 
+        label  = method_labels.get(method, method)
+        color  = colors.get(method, None)
+        marker = markers.get(method, 'o')
+ 
+        ax.errorbar(eve_probs, key_rates, yerr=key_stds,
+                    marker=marker, linewidth=2, markersize=7,
+                    capsize=4, label=label, color=color)
+ 
+    ax.axhline(y=0, color='red', linestyle=':', linewidth=1.5, alpha=0.6)
+    ax.set_title('Secret Key Rate vs Eve Probability',
+                 fontsize=14, fontweight='bold')
+    ax.set_xlabel('Eve Probability', fontsize=12)
+    ax.set_ylabel('Mean Secret Key Rate (bits/pulse)', fontsize=12)
+    ax.set_xlim(-0.05, 1.05)
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return fig
+ 
+ 
+# --------------------------------
+# (D) Adaptability
+# --------------------------------
+def plot_adaptability(results: Dict) -> plt.Figure:
+    """
+    Bar chart of mean adaptation speed for adaptive methods.
+ 
+    Args:
+        results: {method: [{'adaptability_metrics': {'mean_adaptation_speed': float}, ...}]}
+                 Only 'adaptive_prng' and 'adaptive_chaos' keys are expected.
+    """
+    fig, ax = plt.subplots(figsize=(7, 5))
+ 
+    method_labels = {
+        'adaptive_prng':   'Adaptive\n(PRNG)',
+        'adaptive_chaos':  'Adaptive\n(Chaotic)',
+    }
+    colors = {'adaptive_prng': '#378ADD', 'adaptive_chaos': '#1D9E75'}
+ 
+    # Collect only methods that actually exist in results
+    methods_present = [m for m in ('adaptive_prng', 'adaptive_chaos')
+                       if m in results and results[m]]
+ 
+    speeds = []
+    stds   = []
+    labels = []
+ 
+    for method in methods_present:
+        trial_speeds = []
+        for trial in results[method]:
+            metrics = trial.get('adaptability_metrics', {})
+            speed   = metrics.get('mean_adaptation_speed', 0.0)
+            trial_speeds.append(speed)
+        speeds.append(np.mean(trial_speeds))
+        stds.append(np.std(trial_speeds))
+        labels.append(method_labels.get(method, method))
+ 
+    if not speeds:
+        ax.text(0.5, 0.5, 'No adaptability data available',
+                ha='center', va='center', transform=ax.transAxes, fontsize=12)
+        fig.tight_layout()
+        return fig
+ 
+    x_pos  = np.arange(len(labels))
+    bar_colors = [colors.get(m, '#888780') for m in methods_present]
+ 
+    ax.bar(x_pos, speeds, yerr=stds, capsize=6,
+           color=bar_colors, alpha=0.8, edgecolor='black', linewidth=1.2)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(labels, fontsize=12)
+    ax.set_ylabel('Mean Adaptation Speed\n(probability change / round)', fontsize=11)
+    ax.set_title('Adaptability Comparison', fontsize=14, fontweight='bold')
+    ax.grid(axis='y', alpha=0.3)
+    fig.tight_layout()
+    return fig
